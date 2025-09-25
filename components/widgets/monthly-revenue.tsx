@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useId, useMemo } from "react";
 
 import type { RevenueMetricResponse } from "@/lib/types/revenue";
 
@@ -52,8 +52,9 @@ export function MonthlyRevenueWidget({
   cooldownSeconds,
   filterSummary,
 }: MonthlyRevenueWidgetProps) {
+  const gradientId = useId();
   const currency = response?.context.currency ?? "BRL";
-  const timezone = response?.context.timezone ?? "UTC";
+  const timezone = response?.context.timezone ?? "America/Sao_Paulo";
 
   const sparkline = useMemo(() => {
     if (!response?.data.series.length) {
@@ -61,46 +62,62 @@ export function MonthlyRevenueWidget({
     }
 
     const series = response.data.series;
-    const height = 48;
-    const width = 132;
-    const max = Math.max(...series.map((point) => point.value), 1);
+    const height = 56;
+    const width = Math.max(series.length * 32, 240);
+    const paddingY = 6;
+    const values = series.map((point) => point.value);
+    const minValue = Math.min(...values);
+    const maxValue = Math.max(...values);
+    const range = Math.max(maxValue - minValue, 1);
 
-    if (series.length === 1) {
-      const y = height - (series[0].value / max) * height;
-      const points = `0,${y.toFixed(2)} ${width},${y.toFixed(2)}`;
-      return { width, height, points, lastX: width, lastY: y, max };
+    const coordinates = series.map((point, index) => {
+      const x = series.length === 1 ? width / 2 : (index / (series.length - 1)) * width;
+      const ratio = (point.value - minValue) / range;
+      const y = paddingY + (1 - ratio) * (height - paddingY * 2);
+      return { x, y };
+    });
+
+    if (!coordinates.length) {
+      return null;
     }
 
-    const points = series
-      .map((point, index) => {
-        const x = (index / (series.length - 1)) * width;
-        const y = height - (point.value / max) * height;
-        return `${x.toFixed(2)},${y.toFixed(2)}`;
-      })
+    const linePoints = coordinates
+      .map((coord) => `${coord.x.toFixed(2)},${coord.y.toFixed(2)}`)
       .join(" ");
 
-    const lastPoint = series[series.length - 1];
-    const lastX = width;
-    const lastY = height - (lastPoint.value / max) * height;
+    const areaPath = [
+      `M0,${height.toFixed(2)}`,
+      ...coordinates.map((coord) => `L${coord.x.toFixed(2)},${coord.y.toFixed(2)}`),
+      `L${width.toFixed(2)},${height.toFixed(2)}`,
+      "Z",
+    ].join(" ");
 
-    return { width, height, points, lastX, lastY, max };
+    const lastCoord = coordinates[coordinates.length - 1];
+
+    return {
+      width,
+      height,
+      linePoints,
+      areaPath,
+      lastX: lastCoord.x,
+      lastY: lastCoord.y,
+    };
   }, [response]);
 
   if (loading) {
     return (
-      <article className="dashboard-card col-span-1 row-span-1 flex h-full min-w-0 flex-col gap-4">
+      <article className="dashboard-card col-span-2 row-span-1 flex h-full min-w-0 flex-col gap-4">
         <div className="h-3 w-24 rounded bg-[color:var(--surface-strong)]" />
-        <div className="h-8 w-3/4 rounded bg-[color:var(--surface-strong)]" />
-        <div className="h-2 w-full rounded bg-[color:var(--surface-strong)]" />
-        <div className="h-2 w-2/3 rounded bg-[color:var(--surface-strong)]" />
-        <div className="h-4 w-1/3 rounded bg-[color:var(--surface-strong)]" />
+        <div className="h-8 w-1/2 rounded bg-[color:var(--surface-strong)]" />
+        <div className="h-16 w-full rounded bg-[color:var(--surface-strong)]" />
+        <div className="h-24 w-full rounded bg-[color:var(--surface-strong)]" />
       </article>
     );
   }
 
   if (error) {
     return (
-      <article className="dashboard-card col-span-1 row-span-1 flex h-full min-w-0 flex-col justify-between gap-4">
+      <article className="dashboard-card col-span-2 row-span-1 flex h-full min-w-0 flex-col justify-between gap-4">
         <div>
           <p className="text-sm text-[color:var(--muted)]">Receita</p>
           <p className="mt-2 text-lg text-[color:var(--negative)]">{error}</p>
@@ -117,14 +134,14 @@ export function MonthlyRevenueWidget({
 
   if (!response) {
     return (
-      <article className="dashboard-card col-span-1 row-span-1 flex h-full min-w-0 flex-col justify-between">
+      <article className="dashboard-card col-span-2 row-span-1 flex h-full min-w-0 flex-col justify-between">
         <p className="text-sm text-[color:var(--muted)]">Receita</p>
         <p className="text-lg text-[color:var(--muted)]">Nenhum dado disponivel.</p>
       </article>
     );
   }
 
-  const { data, context, cache } = response;
+  const { data, context } = response;
   const totalFormatted = formatCurrency(data.total, currency);
   const previousFormatted = formatCurrency(data.previousTotal, currency);
   const diffValue = data.total - data.previousTotal;
@@ -146,37 +163,43 @@ export function MonthlyRevenueWidget({
     ? `Aguarde ${cooldownSeconds}s`
     : "Sincronizar";
 
+  const detailRows = [
+    { label: "Comparativo anterior", value: previousFormatted },
+    {
+      label: "Leads",
+      value: `${data.uniqueLeads} (anterior ${data.previousUniqueLeads})`,
+    },
+    { label: "Etapa", value: context.filters.stageLabel },
+    { label: "Pipeline", value: filterSummary.pipeline },
+    { label: "Usuario", value: filterSummary.user },
+  ];
+
   return (
-    <article className="dashboard-card col-span-1 row-span-1 flex h-full min-w-0 flex-col gap-4 overflow-hidden">
-      <header className="flex min-w-0 items-start justify-between gap-3">
+    <article className="dashboard-card col-span-2 row-span-1 flex h-full min-w-0 flex-col gap-5 overflow-hidden">
+      <header className="flex min-w-0 items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">Receita</p>
-          <p className="mt-2 truncate text-3xl font-semibold text-[color:var(--foreground)]">{totalFormatted}</p>
+          <p className="mt-2 text-4xl font-semibold leading-tight text-[color:var(--foreground)] md:text-5xl">
+            {totalFormatted}
+          </p>
           <p className="mt-1 text-xs text-[color:var(--muted)]">
             Periodo: {rangeStart} - {rangeEnd}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          {cache?.hit ? (
-            <span className="rounded-full border border-[color:var(--border)] px-2 py-1 text-[10px] uppercase tracking-[0.3em] text-[color:var(--muted)]">
-              Cache
-            </span>
-          ) : null}
-          <button
-            onClick={onSync}
-            disabled={syncDisabled}
-            className="inline-flex items-center justify-center rounded-full bg-[color:var(--accent)] px-3 py-1 text-xs font-medium text-white transition disabled:cursor-not-allowed disabled:bg-[color:var(--border)] disabled:text-[color:var(--muted)]"
-          >
-            {syncLabel}
-          </button>
-        </div>
+        <button
+          onClick={onSync}
+          disabled={syncDisabled}
+          className="inline-flex items-center justify-center rounded-full bg-[color:var(--accent)] px-4 py-1.5 text-xs font-medium text-white transition disabled:cursor-not-allowed disabled:bg-[color:var(--border)] disabled:text-[color:var(--muted)]"
+        >
+          {syncLabel}
+        </button>
       </header>
 
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-baseline gap-2 text-sm">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-baseline gap-3 text-sm">
           {trendPercentage !== null ? (
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
                 trendPercentage >= 0 ? "text-[color:var(--positive)]" : "text-[color:var(--negative)]"
               }`}
             >
@@ -195,14 +218,21 @@ export function MonthlyRevenueWidget({
           <div className="overflow-hidden">
             <svg
               viewBox={`0 0 ${sparkline.width} ${sparkline.height}`}
-              className="h-16 w-full text-[color:var(--accent)]"
+              className="h-20 w-full text-[color:var(--accent)]"
               preserveAspectRatio="none"
             >
+              <defs>
+                <linearGradient id={`${gradientId}-area`} x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="currentColor" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d={sparkline.areaPath} fill={`url(#${gradientId}-area)`} stroke="none" />
               <polyline
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
-                points={sparkline.points}
+                points={sparkline.linePoints}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
@@ -223,11 +253,15 @@ export function MonthlyRevenueWidget({
         )}
       </div>
 
-      <div className="space-y-1 text-xs text-[color:var(--muted)]">
-        <p>Comparativo anterior: {previousFormatted}</p>
-        <p>Leads: {data.uniqueLeads} (anterior {data.previousUniqueLeads})</p>
-        <p>Etapa: {context.filters.stageLabel}</p>
-        <p>{filterSummary.pipeline} | {filterSummary.user}</p>
+      <div className="rounded-2xl border border-[color:var(--border)]/60 bg-[color:var(--surface-strong)]/40 p-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+          {detailRows.map((row) => (
+            <Fragment key={row.label}>
+              <span className="text-[color:var(--muted)]">{row.label}</span>
+              <span className="text-right text-[color:var(--foreground)]">{row.value}</span>
+            </Fragment>
+          ))}
+        </div>
       </div>
 
       <footer className="mt-auto text-xs text-[color:var(--muted)]">

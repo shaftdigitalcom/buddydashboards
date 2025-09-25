@@ -80,7 +80,13 @@ async function parseKommoResponse<T>(response: Response): Promise<T> {
 }
 
 async function handleRequest<T>(url: URL, init: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  let response: Response;
+
+  try {
+    response = await fetch(url, init);
+  } catch (error) {
+    throw new KommoRequestError("Fetch failed", { status: 0, detail: error });
+  }
 
   if (!response.ok) {
     let detail: unknown;
@@ -120,8 +126,31 @@ export async function kommoRequest<T>(options: KommoRequestOptions): Promise<T> 
     body: body ? JSON.stringify(body) : undefined,
   };
 
+  const attemptRequest = async (): Promise<T> => {
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        return await handleRequest<T>(url, init);
+      } catch (error) {
+        const shouldRetry =
+          error instanceof KommoRequestError &&
+          (error.status === 0 || error.status === 408 || error.status === 429 || error.status >= 500);
+
+        if (!shouldRetry || attempt === maxAttempts) {
+          throw error;
+        }
+
+        const backoffMs = 250 * attempt * attempt;
+        await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      }
+    }
+
+    throw new KommoRequestError("Unexpected retry failure", { status: 0 });
+  };
+
   try {
-    const result = await limiter.schedule(() => handleRequest<T>(url, init));
+    const result = await limiter.schedule(attemptRequest);
 
     if (effectiveCacheKey) {
       if (cacheTtlMs) {

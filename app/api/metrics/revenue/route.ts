@@ -11,7 +11,7 @@ import { readMetricsCache, writeMetricsCache } from "@/lib/metrics/cache";
 
 const DEFAULT_TTL_MS = 1000 * 60 * 5;
 const FORCE_COOLDOWN_MS = 1000 * 60 * 2;
-const DEFAULT_TIMEZONE = "UTC";
+const DEFAULT_TIMEZONE = "America/Sao_Paulo";
 const DEFAULT_CURRENCY = "BRL";
 
 type ParsedFilters = {

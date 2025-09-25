@@ -16,6 +16,8 @@ type DraftFilters = {
   pipeline: string;
   user: string;
   stage: string;
+  customFrom: string;
+  customTo: string;
 };
 
 type KommoStatusOption = {
@@ -57,6 +59,7 @@ const DATE_OPTIONS: FilterOption[] = [
   { label: "Ultimos 7 dias", value: "7d" },
   { label: "Ultimos 30 dias", value: "30d" },
   { label: "Ultimos 90 dias", value: "quarter" },
+  { label: "Personalizado", value: "custom" },
 ];
 
 type SelectProps = {
@@ -115,14 +118,17 @@ export default function DashboardPage() {
     pipeline: "all",
     user: "all",
     stage: "won",
+    customFrom: "",
+    customTo: "",
   });
-  const [activeFilters, setActiveFilters] = useState<DraftFilters>(draftFilters);
+  const [activeFilters, setActiveFilters] = useState<DraftFilters>({ ...draftFilters });
 
   const [revenueResponse, setRevenueResponse] = useState<RevenueMetricResponse | null>(null);
   const [revenueError, setRevenueError] = useState<string | null>(null);
   const [loadingRevenue, setLoadingRevenue] = useState(false);
   const [syncingRevenue, setSyncingRevenue] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [filtersError, setFiltersError] = useState<string | null>(null);
 
   const revenueAbortRef = useRef<AbortController | null>(null);
 
@@ -221,6 +227,7 @@ export default function DashboardPage() {
         setSyncingRevenue(true);
       } else {
         setLoadingRevenue(true);
+        setRevenueResponse(null);
       }
       setRevenueError(null);
 
@@ -235,6 +242,14 @@ export default function DashboardPage() {
         }
         if (activeFilters.stage !== "all") {
           params.set("stage", activeFilters.stage);
+        }
+        if (activeFilters.dateRange === "custom") {
+          if (activeFilters.customFrom) {
+            params.set("from", activeFilters.customFrom);
+          }
+          if (activeFilters.customTo) {
+            params.set("to", activeFilters.customTo);
+          }
         }
         if (force) {
           params.set("force", "1");
@@ -251,7 +266,7 @@ export default function DashboardPage() {
 
         const data = (await response.json()) as RevenueMetricResponse;
         setRevenueResponse(data);
-        setCooldownSeconds(data.cache.cooldownRemainingSeconds ?? 0);
+        setCooldownSeconds(data.cache?.cooldownRemainingSeconds ?? 0);
       } catch (error) {
         if ((error as Error).name === "AbortError") {
           return;
@@ -346,7 +361,9 @@ export default function DashboardPage() {
     draftFilters.dateRange !== activeFilters.dateRange ||
     draftFilters.pipeline !== activeFilters.pipeline ||
     draftFilters.user !== activeFilters.user ||
-    draftFilters.stage !== activeFilters.stage;
+    draftFilters.stage !== activeFilters.stage ||
+    draftFilters.customFrom !== activeFilters.customFrom ||
+    draftFilters.customTo !== activeFilters.customTo;
 
   const pipelineSummary = useMemo(() => {
     if (!options) {
@@ -356,7 +373,7 @@ export default function DashboardPage() {
       return "Todos os pipelines";
     }
     const pipeline = options.pipelines.find((item) => String(item.id) === activeFilters.pipeline);
-    return pipeline ? `Pipeline: ${pipeline.name}` : "Pipeline selecionado";
+    return pipeline?.name ?? "Pipeline selecionado";
   }, [activeFilters.pipeline, options]);
 
   const userSummary = useMemo(() => {
@@ -367,11 +384,23 @@ export default function DashboardPage() {
       return "Todos os usuarios";
     }
     const user = options.users.find((item) => String(item.id) === activeFilters.user);
-    return user ? `Usuario: ${user.name}` : "Usuario selecionado";
+    return user?.name ?? "Usuario selecionado";
   }, [activeFilters.user, options]);
 
   const handleApplyFilters = () => {
-    setActiveFilters(draftFilters);
+    if (draftFilters.dateRange === "custom") {
+      if (!draftFilters.customFrom || !draftFilters.customTo) {
+        setFiltersError("Preencha data inicial e final.");
+        return;
+      }
+      if (draftFilters.customFrom > draftFilters.customTo) {
+        setFiltersError("Data inicial nao pode ser maior que a final.");
+        return;
+      }
+    }
+
+    setFiltersError(null);
+    setActiveFilters({ ...draftFilters });
   };
 
   const handleManualSync = () => {
@@ -409,6 +438,9 @@ export default function DashboardPage() {
               {syncingRevenue ? "Sincronizando..." : cooldownSeconds > 0 ? `Aguarde ${cooldownSeconds}s` : "Sincronizar agora"}
             </button>
           </div>
+          {filtersError ? (
+            <p className="text-sm text-[color:var(--negative)]">{filtersError}</p>
+          ) : null}
         </header>
 
         {optionsError ? (
@@ -420,7 +452,25 @@ export default function DashboardPage() {
             id="date"
             label="Data"
             value={draftFilters.dateRange}
-            onChange={(value) => setDraftFilters((prev) => ({ ...prev, dateRange: value }))}
+            onChange={(value) => {
+              setFiltersError(null);
+              setDraftFilters((prev) => {
+                if (value === "custom") {
+                  const today = new Date();
+                  const formattedToday = today.toISOString().slice(0, 10);
+                  const defaultStart = new Date(today);
+                  defaultStart.setDate(defaultStart.getDate() - 29);
+                  const formattedStart = defaultStart.toISOString().slice(0, 10);
+                  return {
+                    ...prev,
+                    dateRange: value,
+                    customFrom: prev.customFrom || formattedStart,
+                    customTo: prev.customTo || formattedToday,
+                  };
+                }
+                return { ...prev, dateRange: value };
+              });
+            }}
             options={DATE_OPTIONS}
             disabled={optionsLoading}
           />
@@ -428,7 +478,10 @@ export default function DashboardPage() {
             id="pipeline"
             label="Pipeline"
             value={draftFilters.pipeline}
-            onChange={(value) => setDraftFilters((prev) => ({ ...prev, pipeline: value, stage: "won" }))}
+            onChange={(value) => {
+              setFiltersError(null);
+              setDraftFilters((prev) => ({ ...prev, pipeline: value, stage: "won" }));
+            }}
             options={pipelineSelectOptions}
             disabled={optionsLoading || Boolean(optionsError)}
           />
@@ -436,7 +489,10 @@ export default function DashboardPage() {
             id="user"
             label="Usuario"
             value={draftFilters.user}
-            onChange={(value) => setDraftFilters((prev) => ({ ...prev, user: value }))}
+            onChange={(value) => {
+              setFiltersError(null);
+              setDraftFilters((prev) => ({ ...prev, user: value }));
+            }}
             options={userSelectOptions}
             disabled={optionsLoading || Boolean(optionsError)}
           />
@@ -444,11 +500,43 @@ export default function DashboardPage() {
             id="stage"
             label="Etapa"
             value={draftFilters.stage}
-            onChange={(value) => setDraftFilters((prev) => ({ ...prev, stage: value }))}
+            onChange={(value) => {
+              setFiltersError(null);
+              setDraftFilters((prev) => ({ ...prev, stage: value }));
+            }}
             options={stageSelectOptions}
             disabled={optionsLoading || Boolean(optionsError)}
           />
         </div>
+
+        {draftFilters.dateRange === "custom" ? (
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.25em] text-[color:var(--muted)]">
+              Data inicial
+              <input
+                type="date"
+                value={draftFilters.customFrom}
+                onChange={(event) => {
+                  setFiltersError(null);
+                  setDraftFilters((prev) => ({ ...prev, customFrom: event.target.value }));
+                }}
+                className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-strong)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent)]/30"
+              />
+            </label>
+            <label className="flex flex-col gap-2 text-xs uppercase tracking-[0.25em] text-[color:var(--muted)]">
+              Data final
+              <input
+                type="date"
+                value={draftFilters.customTo}
+                onChange={(event) => {
+                  setFiltersError(null);
+                  setDraftFilters((prev) => ({ ...prev, customTo: event.target.value }));
+                }}
+                className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-strong)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition focus:border-[color:var(--accent)] focus:ring-2 focus:ring-[color:var(--accent)]/30"
+              />
+            </label>
+          </div>
+        ) : null}
       </section>
 
       <section className="dashboard-grid auto-rows-[minmax(180px,auto)]">
