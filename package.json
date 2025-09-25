@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.4",
     "bottleneck": "^2.19.5",
     "dayjs": "^1.11.18",

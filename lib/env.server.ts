@@ -1,15 +1,15 @@
 ﻿import { z } from "zod";
 
-const envSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+const serverEnvSchema = z.object({
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string(),
   KOMMO_CLIENT_ID: z.string().optional(),
   KOMMO_CLIENT_SECRET: z.string().optional(),
   KOMMO_REDIRECT_URI: z.string().url().optional(),
 });
 
-const envResult = envSchema.safeParse({
+const parsed = serverEnvSchema.safeParse({
   NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -18,9 +18,9 @@ const envResult = envSchema.safeParse({
   KOMMO_REDIRECT_URI: process.env.KOMMO_REDIRECT_URI,
 });
 
-if (!envResult.success) {
-  console.error("Variáveis de ambiente inválidas", envResult.error.flatten().fieldErrors);
-  throw new Error("Verifique as variáveis de ambiente necessárias.");
+if (!parsed.success) {
+  console.error("Variáveis de ambiente do servidor inválidas", parsed.error.flatten().fieldErrors);
+  throw new Error("Verifique as variáveis de ambiente necessárias no servidor.");
 }
 
-export const env = envResult.data;
+export const envServer = parsed.data;

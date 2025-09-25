@@ -1,13 +1,22 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
+
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirectTo") ?? "/dashboard";
+
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -15,10 +24,24 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      // TODO: integrar com Supabase Auth
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        setError(
+          signInError.message === "Invalid login credentials"
+            ? "Credenciais inválidas. Verifique e tente novamente."
+            : signInError.message
+        );
+        return;
+      }
+
+      router.push(redirectTo);
     } catch (err) {
-      setError("Não foi possível entrar. Tente novamente.");
       console.error(err);
+      setError("Não foi possível entrar. Tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -80,5 +103,13 @@ export default function LoginPage() {
         </Link>
       </p>
     </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

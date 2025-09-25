@@ -1,31 +1,12 @@
-﻿import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { env } from "./env";
+﻿import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-type SupabaseSchema = unknown;
+import { envClient } from "./env.client";
+import type { Database } from "./types/database";
 
-export function createSupabaseBrowserClient(): SupabaseClient<SupabaseSchema> {
-  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    throw new Error("Defina NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no ambiente.");
-  }
-
-  return createClient<SupabaseSchema>(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-      },
-    }
+export function getSupabaseBrowserClient(): SupabaseClient<Database> {
+  return createBrowserClient<Database>(
+    envClient.NEXT_PUBLIC_SUPABASE_URL,
+    envClient.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
-}
-
-export function createSupabaseServiceClient(): SupabaseClient<SupabaseSchema> {
-  if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Defina SUPABASE_SERVICE_ROLE_KEY para operações no servidor.");
-  }
-
-  return createClient<SupabaseSchema>(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false },
-  });
 }

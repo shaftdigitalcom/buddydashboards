@@ -1,8 +1,9 @@
 ﻿import { NextResponse, type NextRequest } from "next/server";
-import { createSupabaseServiceClient } from "@/lib/supabaseClient";
+
+import { getSupabaseServiceRoleClient } from "@/lib/supabaseServiceRoleClient";
 
 export async function POST(request: NextRequest) {
-  const payload = await request.json().catch(() => null) as {
+  const payload = (await request.json().catch(() => null)) as {
     token?: string;
     accountDomain?: string;
   } | null;
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const supabase = createSupabaseServiceClient();
+    const supabase = getSupabaseServiceRoleClient();
     console.info("[Kommo] Token recebido para validação", {
       accountDomain: payload.accountDomain,
       tokenPreview: `${payload.token.slice(0, 4)}...`,
@@ -26,4 +27,3 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ message: "Token recebido. Validaremos e avisaremos em instantes." }, { status: 202 });
 }
-

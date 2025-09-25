@@ -1,7 +1,8 @@
 ﻿import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
-import { env } from "@/lib/env";
-import { createSupabaseServiceClient } from "@/lib/supabaseClient";
+
+import { envServer } from "@/lib/env.server";
+import { getSupabaseServiceRoleClient } from "@/lib/supabaseServiceRoleClient";
 
 const OAUTH_STATE_COOKIE = "kommo_oauth_state";
 const ACCOUNT_COOKIE = "kommo_account_domain";
@@ -24,13 +25,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/onboarding/kommo?erro=oauth-invalid", request.url));
   }
 
-  if (!env.KOMMO_CLIENT_ID || !env.KOMMO_CLIENT_SECRET || !env.KOMMO_REDIRECT_URI) {
+  if (!envServer.KOMMO_CLIENT_ID || !envServer.KOMMO_CLIENT_SECRET || !envServer.KOMMO_REDIRECT_URI) {
     return NextResponse.redirect(new URL("/onboarding/kommo?erro=oauth-config", request.url));
   }
 
   try {
-    const supabase = createSupabaseServiceClient();
-    console.info("[Kommo] Código recebido", { code: code.slice(0, 4).padEnd(code.length, "*"), accountDomain });
+    const supabase = getSupabaseServiceRoleClient();
+    console.info("[Kommo] Código recebido", {
+      code: code.slice(0, 4).padEnd(code.length, "*"),
+      accountDomain,
+    });
     void supabase;
   } catch (err) {
     console.error("Falha ao finalizar OAuth", err);

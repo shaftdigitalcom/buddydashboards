@@ -1,7 +1,10 @@
 ﻿"use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { getSupabaseBrowserClient } from "@/lib/supabaseClient";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -10,16 +13,52 @@ export default function RegisterPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const router = useRouter();
+  const supabase = useMemo(() => getSupabaseBrowserClient(), []);
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
     try {
-      // TODO: integrar com Supabase Auth + criação de perfil
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (signUpError) {
+        setError(signUpError.message);
+        return;
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .upsert({ id: user.id, full_name: name });
+
+        if (profileError) {
+          console.error(profileError);
+          setError("Perfil criado parcialmente. Tente salvar novamente nas configurações.");
+          return;
+        }
+      }
+
+      router.push("/onboarding/kommo");
     } catch (err) {
-      setError("Não foi possível criar a conta. Tente novamente.");
       console.error(err);
+      setError("Não foi possível criar a conta. Tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
