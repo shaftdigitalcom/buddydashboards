@@ -61,8 +61,8 @@ export function MonthlyRevenueWidget({
     }
 
     const series = response.data.series;
-    const height = 42;
-    const width = 120;
+    const height = 48;
+    const width = 132;
     const max = Math.max(...series.map((point) => point.value), 1);
 
     if (series.length === 1) {
@@ -88,7 +88,7 @@ export function MonthlyRevenueWidget({
 
   if (loading) {
     return (
-      <article className="dashboard-card col-span-1 row-span-1 animate-pulse space-y-4">
+      <article className="dashboard-card col-span-1 row-span-1 flex h-full min-w-0 flex-col gap-4">
         <div className="h-3 w-24 rounded bg-[color:var(--surface-strong)]" />
         <div className="h-8 w-3/4 rounded bg-[color:var(--surface-strong)]" />
         <div className="h-2 w-full rounded bg-[color:var(--surface-strong)]" />
@@ -100,14 +100,14 @@ export function MonthlyRevenueWidget({
 
   if (error) {
     return (
-      <article className="dashboard-card col-span-1 row-span-1 gap-4">
+      <article className="dashboard-card col-span-1 row-span-1 flex h-full min-w-0 flex-col justify-between gap-4">
         <div>
-          <p className="text-sm text-[color:var(--muted)]">Receita Mensal</p>
+          <p className="text-sm text-[color:var(--muted)]">Receita</p>
           <p className="mt-2 text-lg text-[color:var(--negative)]">{error}</p>
         </div>
         <button
           onClick={onSync}
-          className="inline-flex items-center justify-center rounded-lg bg-[color:var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[color:var(--accent)]/85"
+          className="inline-flex items-center justify-center self-start rounded-lg bg-[color:var(--accent)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[color:var(--accent)]/85"
         >
           Tentar novamente
         </button>
@@ -117,9 +117,9 @@ export function MonthlyRevenueWidget({
 
   if (!response) {
     return (
-      <article className="dashboard-card col-span-1 row-span-1">
-        <p className="text-sm text-[color:var(--muted)]">Receita Mensal</p>
-        <p className="mt-4 text-lg text-[color:var(--muted)]">Nenhum dado disponivel.</p>
+      <article className="dashboard-card col-span-1 row-span-1 flex h-full min-w-0 flex-col justify-between">
+        <p className="text-sm text-[color:var(--muted)]">Receita</p>
+        <p className="text-lg text-[color:var(--muted)]">Nenhum dado disponivel.</p>
       </article>
     );
   }
@@ -133,7 +133,8 @@ export function MonthlyRevenueWidget({
   const trendLabel =
     trendPercentage === null
       ? "Sem base de comparacao"
-      : `${trendPercentage >= 0 ? "+" : ""}${trendPercentage.toFixed(1)}% vs periodo anterior`;
+      : `${trendPercentage.toFixed(1)}% vs periodo anterior`;
+  const trendPrefix = trendPercentage === null ? "" : trendPercentage >= 0 ? "+" : "-";
   const rangeStart = formatDateRangePart(data.range.currentFrom, timezone);
   const rangeEnd = formatDateRangePart(data.range.currentTo, timezone);
   const generatedAt = formatDateTime(data.generatedAt, timezone);
@@ -146,11 +147,11 @@ export function MonthlyRevenueWidget({
     : "Sincronizar";
 
   return (
-    <article className="dashboard-card col-span-1 row-span-1 space-y-4">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.4em] text-[color:var(--muted)]">Receita Mensal</p>
-          <p className="mt-2 text-3xl font-semibold text-[color:var(--foreground)]">{totalFormatted}</p>
+    <article className="dashboard-card col-span-1 row-span-1 flex h-full min-w-0 flex-col gap-4 overflow-hidden">
+      <header className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--muted)]">Receita</p>
+          <p className="mt-2 truncate text-3xl font-semibold text-[color:var(--foreground)]">{totalFormatted}</p>
           <p className="mt-1 text-xs text-[color:var(--muted)]">
             Periodo: {rangeStart} - {rangeEnd}
           </p>
@@ -172,15 +173,14 @@ export function MonthlyRevenueWidget({
       </header>
 
       <div className="space-y-3">
-        <div className="flex items-baseline gap-2 text-sm">
+        <div className="flex flex-wrap items-baseline gap-2 text-sm">
           {trendPercentage !== null ? (
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium ${
                 trendPercentage >= 0 ? "text-[color:var(--positive)]" : "text-[color:var(--negative)]"
               }`}
             >
-              {trendPercentage >= 0 ? "+" : "-"}{" "}
-              {trendLabel}
+              {trendPrefix} {trendLabel}
             </span>
           ) : (
             <span className="text-xs text-[color:var(--muted)]">{trendLabel}</span>
@@ -192,28 +192,30 @@ export function MonthlyRevenueWidget({
         </div>
 
         {sparkline ? (
-          <svg
-            viewBox={`0 0 ${sparkline.width} ${sparkline.height}`}
-            className="h-16 w-full text-[color:var(--accent)]"
-            preserveAspectRatio="none"
-          >
-            <polyline
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              points={sparkline.points}
-              strokeLinejoin="round"
-              strokeLinecap="round"
-            />
-            <circle
-              cx={sparkline.lastX}
-              cy={sparkline.lastY}
-              r="3"
-              fill="currentColor"
-              stroke="var(--surface)"
-              strokeWidth="1"
-            />
-          </svg>
+          <div className="overflow-hidden">
+            <svg
+              viewBox={`0 0 ${sparkline.width} ${sparkline.height}`}
+              className="h-16 w-full text-[color:var(--accent)]"
+              preserveAspectRatio="none"
+            >
+              <polyline
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                points={sparkline.points}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+              <circle
+                cx={sparkline.lastX}
+                cy={sparkline.lastY}
+                r="3"
+                fill="currentColor"
+                stroke="var(--surface)"
+                strokeWidth="1"
+              />
+            </svg>
+          </div>
         ) : (
           <div className="rounded-lg border border-dashed border-[color:var(--border)] p-3 text-center text-xs text-[color:var(--muted)]">
             Sem pontos suficientes para exibir tendencia.
@@ -228,10 +230,9 @@ export function MonthlyRevenueWidget({
         <p>{filterSummary.pipeline} | {filterSummary.user}</p>
       </div>
 
-      <footer className="text-xs text-[color:var(--muted)]">
-        <span>Atualizado em {generatedAt}</span>
+      <footer className="mt-auto text-xs text-[color:var(--muted)]">
+        Atualizado em {generatedAt}
       </footer>
     </article>
   );
 }
-

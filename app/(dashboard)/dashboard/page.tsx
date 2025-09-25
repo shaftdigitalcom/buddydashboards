@@ -96,7 +96,7 @@ type PlaceholderCardProps = {
 
 function PlaceholderCard({ title, description }: PlaceholderCardProps) {
   return (
-    <article className="dashboard-card items-center justify-center text-center text-sm text-[color:var(--muted)]">
+    <article className="dashboard-card flex h-full min-w-0 flex-col items-center justify-center text-center text-sm text-[color:var(--muted)]">
       <div className="space-y-2">
         <p className="text-base text-[color:var(--foreground)]">{title}</p>
         <p>{description}</p>
@@ -451,7 +451,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="dashboard-grid auto-rows-[minmax(140px,1fr)]" style={{ aspectRatio: "16 / 9" }}>
+      <section className="dashboard-grid auto-rows-[minmax(180px,auto)]">
         <MonthlyRevenueWidget
           response={revenueResponse}
           loading={loadingRevenue || optionsLoading}
@@ -470,3 +470,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
