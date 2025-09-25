@@ -1,0 +1,1443 @@
+DOCUMENTACAO COMPLETA DA API KOMMO - TODOS OS ENDPOINTS
+
+==================================================
+INFORMACOES GERAIS DA API KOMMO
+==================================================
+
+Base URL: https://subdomain.kommo.com/api/v4/
+
+Formato de resposta: JSON (HAL+JSON)
+Autenticacao: OAuth 2.0 ou Token de longa duração
+Cabecalho de sucesso: Content-Type: application/hal+json
+Cabecalho de erro: Content-Type: application/problem+json
+Rate Limiting: Aplicado conforme plano da conta
+Timezone: UTC para todas as datas (Unix Timestamps)
+
+==================================================
+1. CONTA (ACCOUNT)
+==================================================
+
+1.1 OBTER INFORMACOES DA CONTA
+Metodo: GET
+Endpoint: /api/v4/account
+Descricao: Obtem informacoes basicas da conta Kommo
+Limitacoes: Disponivel conforme direitos do usuario
+Parametros: Nenhum parametro obrigatorio
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "subdomain": string,
+  "created_at": int,
+  "created_by": int,
+  "updated_at": int,
+  "updated_by": int,
+  "current_user_id": int,
+  "country": string,
+  "customers_mode": string,
+  "is_unsorted_on": bool,
+  "mobile_feature_version": int,
+  "is_loss_reason_enabled": bool,
+  "is_helpbot_enabled": bool,
+  "is_technical_account": bool,
+  "contact_name_display_order": int,
+  "amojo_id": string,
+  "uuid": string,
+  "version": int,
+  "_embedded": {
+    "amojoRights": object,
+    "taskTypes": array,
+    "datetime_settings": object
+  }
+}
+
+==================================================
+2. LEADS
+==================================================
+
+2.1 OBTER LISTA DE LEADS
+Metodo: GET
+Endpoint: /api/v4/leads
+Descricao: Obtem lista de leads na conta
+Query Parameters:
+- with[]: contacts, catalog_elements, loss_reason, is_price_modified_by_robot, source_id, only_deleted
+- filter[id][]: Array de IDs dos leads
+- filter[name]: Nome do lead
+- filter[pipeline_id][]: Array de IDs dos pipelines
+- filter[status_id][]: Array de IDs dos status
+- filter[responsible_user_id][]: Array de IDs dos usuarios responsaveis
+- filter[created_by][]: Array de IDs dos criadores
+- filter[updated_by][]: Array de IDs dos atualizadores
+- filter[created_at][from]: Data de criacao inicial (Unix timestamp)
+- filter[created_at][to]: Data de criacao final (Unix timestamp)
+- filter[updated_at][from]: Data de atualizacao inicial
+- filter[updated_at][to]: Data de atualizacao final
+- filter[closest_task_at][from]: Data da proxima tarefa inicial
+- filter[closest_task_at][to]: Data da proxima tarefa final
+- filter[tags]: Filtro por tags
+- order[created_at]: asc ou desc
+- order[updated_at]: asc ou desc
+- order[id]: asc ou desc
+- limit: Limite de resultados (max 250)
+- page: Numero da pagina
+
+Limitacoes: Filtro de status limitado a um estagio por pipeline
+Resposta: Array de objetos lead + metadados de paginacao
+
+2.2 OBTER LEAD UNICO
+Metodo: GET
+Endpoint: /api/v4/leads/{id}
+Parametros obrigatorios: {id} = ID do lead
+Query Parameters: with[] (mesmo da listagem)
+Resposta: Objeto lead completo
+
+2.3 ADICIONAR LEADS
+Metodo: POST
+Endpoint: /api/v4/leads
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "price": int,
+    "status_id": int,
+    "pipeline_id": int,
+    "responsible_user_id": int,
+    "created_by": int,
+    "updated_by": int,
+    "created_at": int,
+    "updated_at": int,
+    "closed_at": int,
+    "loss_reason_id": int,
+    "custom_fields_values": [
+      {
+        "field_id": int,
+        "values": [
+          {
+            "value": string,
+            "enum_id": int,
+            "enum_code": string
+          }
+        ]
+      }
+    ],
+    "_embedded": {
+      "tags": [{"id": int}],
+      "companies": [{"id": int}],
+      "contacts": [{"id": int, "is_main": bool}]
+    }
+  }
+]
+Resposta: Array com leads criados + metadados
+
+2.4 ATUALIZAR LEAD UNICO
+Metodo: PATCH
+Endpoint: /api/v4/leads/{id}
+Body: Mesmo formato do POST (sem campos obrigatorios)
+
+2.5 ATUALIZAR MULTIPLOS LEADS
+Metodo: PATCH
+Endpoint: /api/v4/leads
+Body: Array de objetos com id obrigatorio
+
+2.6 ADICAO COMPLEXA DE LEADS
+Metodo: POST
+Endpoint: /api/v4/leads/complex
+Body JSON:
+[
+  {
+    "name": string,
+    "price": int,
+    "pipeline_id": int,
+    "status_id": int,
+    "responsible_user_id": int,
+    "custom_fields_values": array,
+    "_embedded": {
+      "contacts": [
+        {
+          "first_name": string,
+          "last_name": string,
+          "name": string,
+          "responsible_user_id": int,
+          "custom_fields_values": array,
+          "_embedded": {
+            "companies": [
+              {
+                "name": string,
+                "responsible_user_id": int,
+                "custom_fields_values": array
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+]
+Limitacoes: Cria leads com contatos e empresas em uma requisicao
+
+==================================================
+3. PIPELINES E ETAPAS
+==================================================
+
+3.1 OBTER LISTA DE PIPELINES
+Metodo: GET
+Endpoint: /api/v4/leads/pipelines
+Query Parameters:
+- filter[id][]: Array de IDs
+- page, limit
+Resposta: Lista de pipelines com etapas embedded
+
+3.2 OBTER PIPELINE UNICO
+Metodo: GET
+Endpoint: /api/v4/leads/pipelines/{id}
+
+3.3 ADICIONAR PIPELINES
+Metodo: POST
+Endpoint: /api/v4/leads/pipelines
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "sort": int,
+    "is_main": bool,
+    "is_unsorted_on": bool,
+    "is_archive": bool,
+    "account_id": int,
+    "_embedded": {
+      "statuses": [
+        {
+          "name": string (obrigatorio),
+          "sort": int,
+          "is_editable": bool,
+          "color": string,
+          "type": int
+        }
+      ]
+    }
+  }
+]
+
+3.4 EDITAR PIPELINE
+Metodo: PATCH
+Endpoint: /api/v4/leads/pipelines/{id}
+
+3.5 EXCLUIR PIPELINE
+Metodo: DELETE
+Endpoint: /api/v4/leads/pipelines/{id}
+
+3.6 OBTER ETAPAS DO PIPELINE
+Metodo: GET
+Endpoint: /api/v4/leads/pipelines/{pipeline_id}/statuses
+
+3.7 OBTER ETAPA UNICA
+Metodo: GET
+Endpoint: /api/v4/leads/pipelines/{pipeline_id}/statuses/{id}
+
+3.8 ADICIONAR ETAPAS
+Metodo: POST
+Endpoint: /api/v4/leads/pipelines/{pipeline_id}/statuses
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "sort": int,
+    "is_editable": bool,
+    "color": string,
+    "type": int
+  }
+]
+
+3.9 EDITAR ETAPAS
+Metodo: PATCH
+Endpoint: /api/v4/leads/pipelines/{pipeline_id}/statuses/{id}
+
+3.10 EXCLUIR ETAPA
+Metodo: DELETE
+Endpoint: /api/v4/leads/pipelines/{pipeline_id}/statuses/{id}
+
+3.11 CODIGOS DE CORES DAS ETAPAS
+Cores disponiveis: #99ccfd, #fffd7f, #ffcc66, #ff6666, #cc9999, #ccc8f9, #eb93ff, #1e2023, #87f2c0
+
+==================================================
+4. CONTATOS
+==================================================
+
+4.1 OBTER LISTA DE CONTATOS
+Metodo: GET
+Endpoint: /api/v4/contacts
+Query Parameters:
+- with[]: leads, catalog_elements
+- filter[id][], filter[name], filter[responsible_user_id][]
+- filter[created_by][], filter[updated_by][]
+- filter[created_at][from/to], filter[updated_at][from/to]
+- order[created_at/updated_at/id]: asc/desc
+- limit (max 250), page
+
+4.2 OBTER CONTATO UNICO
+Metodo: GET
+Endpoint: /api/v4/contacts/{id}
+Query Parameters: with[]
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "first_name": string,
+  "last_name": string,
+  "responsible_user_id": int,
+  "group_id": int,
+  "created_by": int,
+  "updated_by": int,
+  "created_at": int,
+  "updated_at": int,
+  "closest_task_at": int,
+  "custom_fields_values": array,
+  "account_id": int,
+  "_embedded": {
+    "tags": array,
+    "companies": array,
+    "leads": array,
+    "catalog_elements": array
+  }
+}
+
+4.3 ADICIONAR CONTATOS
+Metodo: POST
+Endpoint: /api/v4/contacts
+Body JSON:
+[
+  {
+    "first_name": string,
+    "last_name": string,
+    "name": string,
+    "responsible_user_id": int,
+    "created_by": int,
+    "updated_by": int,
+    "created_at": int,
+    "updated_at": int,
+    "custom_fields_values": array,
+    "_embedded": {
+      "tags": array,
+      "companies": array
+    }
+  }
+]
+
+4.4 ATUALIZAR CONTATO UNICO
+Metodo: PATCH
+Endpoint: /api/v4/contacts/{id}
+
+4.5 ATUALIZAR MULTIPLOS CONTATOS
+Metodo: PATCH
+Endpoint: /api/v4/contacts
+
+==================================================
+5. USUARIOS E FUNCOES
+==================================================
+
+5.1 OBTER LISTA DE USUARIOS
+Metodo: GET
+Endpoint: /api/v4/users
+Query Parameters:
+- filter[id][], filter[name], filter[email]
+- with[]: role, group
+- limit, page
+
+5.2 OBTER USUARIO UNICO
+Metodo: GET
+Endpoint: /api/v4/users/{id}
+Query Parameters: with[]
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "email": string,
+  "lang": string,
+  "rights": object,
+  "is_admin": bool,
+  "is_free": bool,
+  "is_active": bool,
+  "group_id": int,
+  "role_id": int,
+  "created_at": int,
+  "updated_at": int,
+  "_embedded": {
+    "groups": array,
+    "roles": array
+  }
+}
+
+5.3 ADICIONAR USUARIOS
+Metodo: POST
+Endpoint: /api/v4/users
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "email": string (obrigatorio),
+    "role_id": int (obrigatorio),
+    "is_admin": bool,
+    "is_free": bool,
+    "is_active": bool,
+    "group_id": int,
+    "password_hash": string,
+    "language": string
+  }
+]
+
+5.4 OBTER LISTA DE FUNCOES
+Metodo: GET
+Endpoint: /api/v4/roles
+Query Parameters: filter[id][], limit, page
+
+5.5 OBTER FUNCAO UNICA
+Metodo: GET
+Endpoint: /api/v4/roles/{id}
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "rights": object,
+  "users_count": int,
+  "is_admin": bool,
+  "is_free": bool
+}
+
+5.6 ADICIONAR FUNCOES
+Metodo: POST
+Endpoint: /api/v4/roles
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "rights": object (obrigatorio)
+  }
+]
+
+5.7 EDITAR FUNCAO
+Metodo: PATCH
+Endpoint: /api/v4/roles/{id}
+
+5.8 EXCLUIR FUNCAO
+Metodo: DELETE
+Endpoint: /api/v4/roles/{id}
+
+==================================================
+6. TAGS
+==================================================
+
+6.1 OBTER LISTA DE TAGS POR ENTIDADE
+Metodo: GET
+Endpoint: /api/v4/{entity_type}/tags
+Onde entity_type: leads, contacts, companies, customers
+Query Parameters: filter[id][], filter[name], limit, page
+
+6.2 ADICIONAR TAGS PARA ENTIDADE
+Metodo: POST
+Endpoint: /api/v4/{entity_type}/tags
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "color": string
+  }
+]
+
+6.3 ATUALIZAR TAGS DE UMA ENTIDADE
+Metodo: POST
+Endpoint: /api/v4/{entity_type}/{entity_id}/tags
+Body JSON:
+[
+  {"id": int, "name": string, "color": string}
+]
+
+6.4 ATUALIZAR TAGS DE MULTIPLAS ENTIDADES
+Metodo: POST
+Endpoint: /api/v4/{entity_type}/tags
+Body JSON:
+{
+  "entity_ids": [int],
+  "tags": [
+    {"id": int, "name": string, "color": string}
+  ]
+}
+
+==================================================
+7. CAMPOS PERSONALIZADOS
+==================================================
+
+7.1 OBTER LISTA DE CAMPOS PERSONALIZADOS
+Metodo: GET
+Endpoint: /api/v4/{entity_type}/custom_fields
+Onde entity_type: leads, contacts, companies, customers
+Query Parameters: filter[id][], filter[name], limit, page
+
+7.2 OBTER CAMPO PERSONALIZADO POR ID
+Metodo: GET
+Endpoint: /api/v4/{entity_type}/custom_fields/{id}
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "code": string,
+  "sort": int,
+  "type": string,
+  "account_id": int,
+  "entity_type": string,
+  "is_computed": bool,
+  "is_predefined": bool,
+  "is_deletable": bool,
+  "is_visible": bool,
+  "is_required": bool,
+  "settings": object,
+  "remind": string,
+  "enums": array,
+  "group_id": string,
+  "required_statuses": array,
+  "hidden_statuses": array,
+  "chained_lists": array
+}
+
+7.3 ADICIONAR CAMPOS PERSONALIZADOS
+Metodo: POST
+Endpoint: /api/v4/{entity_type}/custom_fields
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "type": string (obrigatorio),
+    "sort": int,
+    "code": string,
+    "is_required": bool,
+    "settings": object,
+    "enums": [
+      {
+        "value": string,
+        "sort": int,
+        "code": string
+      }
+    ]
+  }
+]
+
+Tipos de campos disponiveis:
+- text: Campo de texto
+- numeric: Campo numerico
+- checkbox: Campo de selecao (checkbox)
+- select: Campo de selecao (dropdown)
+- multiselect: Campo de selecao multipla
+- date: Campo de data
+- url: Campo de URL
+- textarea: Campo de texto longo
+- radiobutton: Campo de botoes radio
+- streetaddress: Campo de endereco
+- smart_address: Endereco inteligente
+- birthday: Campo de aniversario
+- phone: Campo de telefone
+- email: Campo de email
+- price: Campo de preco
+- legal_entity: Pessoa juridica
+- date_time: Data e hora
+- items: Lista de produtos
+- category: Categoria
+
+==================================================
+8. LEADS DE ENTRADA (INCOMING LEADS)
+==================================================
+
+8.1 LISTA DE LEADS DE ENTRADA
+Metodo: GET
+Endpoint: /api/v4/leads/unsorted
+Query Parameters:
+- filter[uid][], filter[category], filter[pipeline_id][]
+- order[created_at]: asc/desc
+- limit, page
+
+8.2 OBTER LEAD DE ENTRADA POR UID
+Metodo: GET
+Endpoint: /api/v4/leads/unsorted/{uid}
+Resposta JSON:
+{
+  "uid": string,
+  "source_uid": string,
+  "source_name": string,
+  "category": string,
+  "pipeline_id": int,
+  "created_at": int,
+  "metadata": object,
+  "_embedded": {
+    "leads": array,
+    "contacts": array,
+    "companies": array
+  }
+}
+
+8.3 ADICIONAR LEAD DE ENTRADA TIPO SIP
+Metodo: POST
+Endpoint: /api/v4/leads/unsorted/sip
+Body JSON:
+[
+  {
+    "source_name": string,
+    "source_uid": string,
+    "pipeline_id": int,
+    "created_at": int,
+    "metadata": {
+      "from": string,
+      "phone": string,
+      "called_at": int,
+      "duration": int,
+      "link": string,
+      "service_code": string,
+      "uniq": string
+    },
+    "_embedded": {
+      "contacts": array
+    }
+  }
+]
+
+8.4 ADICIONAR LEAD DE ENTRADA TIPO FORMULARIO
+Metodo: POST
+Endpoint: /api/v4/leads/unsorted/forms
+Body JSON: Similar ao SIP, metadata diferente
+
+8.5 ACEITAR LEADS DE ENTRADA
+Metodo: POST
+Endpoint: /api/v4/leads/unsorted/{uid}/accept
+Body JSON:
+{
+  "user_id": int,
+  "status_id": int,
+  "pipeline_id": int
+}
+
+8.6 RECUSAR LEADS DE ENTRADA
+Metodo: DELETE
+Endpoint: /api/v4/leads/unsorted/{uid}/decline
+Body JSON: {"user_id": int}
+
+8.7 VINCULAR LEADS DE ENTRADA
+Metodo: POST
+Endpoint: /api/v4/leads/unsorted/{uid}/link
+Body JSON: {"link": {"entity_id": int, "entity_type": string}}
+
+8.8 RESUMO DOS LEADS DE ENTRADA
+Metodo: GET
+Endpoint: /api/v4/leads/unsorted/summary
+Query Parameters: filter[pipeline_id][]
+Resposta: Objeto com estatisticas dos leads nao organizados
+
+==================================================
+9. TAREFAS
+==================================================
+
+9.1 LISTA DE TAREFAS
+Metodo: GET
+Endpoint: /api/v4/tasks
+Query Parameters:
+- filter[id][], filter[entity_id][], filter[entity_type][]
+- filter[responsible_user_id][], filter[is_completed]
+- filter[task_type_id][], filter[text]
+- filter[created_at][from/to], filter[updated_at][from/to]
+- filter[complete_till][from/to]
+- order[created_at/updated_at/id/complete_till]: asc/desc
+- limit, page
+
+9.2 OBTER TAREFA POR ID
+Metodo: GET
+Endpoint: /api/v4/tasks/{id}
+Resposta JSON:
+{
+  "id": int,
+  "created_by": int,
+  "updated_by": int,
+  "created_at": int,
+  "updated_at": int,
+  "responsible_user_id": int,
+  "group_id": int,
+  "entity_id": int,
+  "entity_type": string,
+  "is_completed": bool,
+  "task_type_id": int,
+  "text": string,
+  "duration": int,
+  "complete_till": int,
+  "result": {
+    "text": string
+  },
+  "account_id": int
+}
+
+9.3 ADICIONAR TAREFAS
+Metodo: POST
+Endpoint: /api/v4/tasks
+Body JSON:
+[
+  {
+    "entity_id": int (obrigatorio),
+    "entity_type": string (obrigatorio),
+    "responsible_user_id": int,
+    "task_type_id": int (obrigatorio),
+    "text": string,
+    "complete_till": int (obrigatorio),
+    "duration": int,
+    "created_by": int,
+    "updated_by": int
+  }
+]
+
+9.4 EDITAR MULTIPLAS TAREFAS
+Metodo: PATCH
+Endpoint: /api/v4/tasks
+Body: Array com objetos contendo id obrigatorio
+
+9.5 EDITAR TAREFA UNICA
+Metodo: PATCH
+Endpoint: /api/v4/tasks/{id}
+
+==================================================
+10. FONTES
+==================================================
+
+10.1 OBTER LISTA DE FONTES
+Metodo: GET
+Endpoint: /api/v4/sources
+Query Parameters: filter[id][], filter[name], limit, page
+
+10.2 OBTER FONTE POR ID
+Metodo: GET
+Endpoint: /api/v4/sources/{id}
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "external_id": string,
+  "pipeline_id": int,
+  "created_at": int,
+  "updated_at": int,
+  "default": bool
+}
+
+10.3 ADICIONAR FONTES
+Metodo: POST
+Endpoint: /api/v4/sources
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "external_id": string,
+    "pipeline_id": int,
+    "default": bool
+  }
+]
+
+10.4 ATUALIZAR FONTE UNICA
+Metodo: PATCH
+Endpoint: /api/v4/sources/{id}
+
+10.5 ATUALIZAR MULTIPLAS FONTES
+Metodo: PATCH
+Endpoint: /api/v4/sources
+
+10.6 EXCLUIR FONTE UNICA
+Metodo: DELETE
+Endpoint: /api/v4/sources/{id}
+
+10.7 EXCLUIR MULTIPLAS FONTES
+Metodo: DELETE
+Endpoint: /api/v4/sources
+Body JSON: [{"id": int}]
+
+==================================================
+11. SALESBOT
+==================================================
+
+11.1 INICIAR SALESBOT
+Metodo: POST
+Endpoint: /api/v4/salesbot/{bot_id}/run
+Path Parameters: {bot_id} = ID do bot
+Body JSON:
+{
+  "entity_id": int (obrigatorio),
+  "entity_type": string (obrigatorio)
+}
+Limitacoes: Disponivel para administradores
+
+==================================================
+12. EMPRESAS
+==================================================
+
+12.1 LISTA DE EMPRESAS
+Metodo: GET
+Endpoint: /api/v4/companies
+Query Parameters:
+- with[]: leads, catalog_elements, contacts
+- filter[id][], filter[name], filter[responsible_user_id][]
+- filter[created_by][], filter[updated_by][]
+- filter[created_at][from/to], filter[updated_at][from/to]
+- order[created_at/updated_at/id]: asc/desc
+- limit, page
+
+12.2 OBTER EMPRESA POR ID
+Metodo: GET
+Endpoint: /api/v4/companies/{id}
+Query Parameters: with[]
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "responsible_user_id": int,
+  "group_id": int,
+  "created_by": int,
+  "updated_by": int,
+  "created_at": int,
+  "updated_at": int,
+  "closest_task_at": int,
+  "custom_fields_values": array,
+  "account_id": int,
+  "_embedded": {
+    "tags": array,
+    "contacts": array,
+    "leads": array,
+    "catalog_elements": array
+  }
+}
+
+12.3 ADICIONAR EMPRESAS
+Metodo: POST
+Endpoint: /api/v4/companies
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "responsible_user_id": int,
+    "created_by": int,
+    "updated_by": int,
+    "created_at": int,
+    "updated_at": int,
+    "custom_fields_values": array,
+    "_embedded": {
+      "tags": array
+    }
+  }
+]
+
+12.4 ATUALIZAR MULTIPLAS EMPRESAS
+Metodo: PATCH
+Endpoint: /api/v4/companies
+
+12.5 ATUALIZAR EMPRESA UNICA
+Metodo: PATCH
+Endpoint: /api/v4/companies/{id}
+
+==================================================
+13. TEMPLATES
+==================================================
+
+13.1 OBTER LISTA DE TEMPLATES
+Metodo: GET
+Endpoint: /api/v4/templates
+Query Parameters: filter[id][], filter[name], filter[type], limit, page
+
+13.2 OBTER TEMPLATE POR ID
+Metodo: GET
+Endpoint: /api/v4/templates/{id}
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "content": string,
+  "type": string,
+  "language_code": string,
+  "category": string,
+  "header": object,
+  "body": object,
+  "footer": object,
+  "buttons": array,
+  "created_at": int,
+  "updated_at": int
+}
+
+13.3 ADICIONAR TEMPLATES
+Metodo: POST
+Endpoint: /api/v4/templates
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "content": string,
+    "type": string (obrigatorio),
+    "language_code": string,
+    "category": string,
+    "header": object,
+    "body": object,
+    "footer": object,
+    "buttons": array
+  }
+]
+
+13.4 EDITAR TEMPLATES
+Metodo: PATCH
+Endpoint: /api/v4/templates/{id}
+
+13.5 ENVIAR TEMPLATE WHATSAPP PARA MODERACAO
+Metodo: POST
+Endpoint: /api/v4/templates/{id}/submit_for_review
+
+13.6 EDITAR STATUS TEMPLATE WHATSAPP
+Metodo: PATCH
+Endpoint: /api/v4/templates/{id}/status
+
+13.7 EXCLUIR MULTIPLOS TEMPLATES
+Metodo: DELETE
+Endpoint: /api/v4/templates
+
+13.8 EXCLUIR TEMPLATE UNICO
+Metodo: DELETE
+Endpoint: /api/v4/templates/{id}
+
+==================================================
+14. WEBHOOKS
+==================================================
+
+14.1 LISTA DE WEBHOOKS
+Metodo: GET
+Endpoint: /api/v4/webhooks
+Resposta JSON:
+{
+  "_embedded": {
+    "webhooks": [
+      {
+        "id": string,
+        "destination": string,
+        "settings": array
+      }
+    ]
+  }
+}
+
+14.2 ADICIONAR WEBHOOK
+Metodo: POST
+Endpoint: /api/v4/webhooks
+Body JSON:
+{
+  "destination": string (obrigatorio),
+  "settings": [
+    string (eventos: leads:add, leads:update, leads:delete, leads:status, etc.)
+  ]
+}
+
+14.3 EXCLUIR WEBHOOK
+Metodo: DELETE
+Endpoint: /api/v4/webhooks/{id}
+
+14.4 EVENTOS DE WEBHOOK DISPONIVEIS
+- leads:add, leads:update, leads:delete, leads:status, leads:responsible
+- contacts:add, contacts:update, contacts:delete, contacts:responsible
+- companies:add, companies:update, companies:delete, companies:responsible
+- tasks:add, tasks:update, tasks:delete, tasks:complete
+- incoming_lead:add, incoming_lead:accept, incoming_lead:decline
+- sale:add, sale:update, sale:delete
+- customers:add, customers:update, customers:delete
+- customer_transactions:add, customer_transactions:update, customer_transactions:delete
+
+==================================================
+15. CONVERSACOES
+==================================================
+
+15.1 OBTER CONVERSACAO POR ID
+Metodo: GET
+Endpoint: /api/v4/talks/{id}
+Resposta JSON:
+{
+  "id": string,
+  "entity_id": int,
+  "entity_type": string,
+  "created_at": int,
+  "updated_at": int,
+  "closed_at": int,
+  "is_closed": bool,
+  "responsible_user_id": int,
+  "last_message_at": int,
+  "participants": array,
+  "_embedded": {
+    "messages": array
+  }
+}
+
+15.2 FECHAR CONVERSACAO POR ID
+Metodo: PATCH
+Endpoint: /api/v4/talks/{id}/close
+Body JSON: {"user_id": int}
+
+==================================================
+16. WIDGETS
+==================================================
+
+16.1 LISTA DE WIDGETS
+Metodo: GET
+Endpoint: /api/v4/widgets
+Resposta JSON:
+{
+  "_embedded": {
+    "widgets": [
+      {
+        "code": string,
+        "version": string,
+        "name": string,
+        "description": string,
+        "short_description": string,
+        "author": object,
+        "widget_active": bool,
+        "widget_code": string,
+        "settings": array
+      }
+    ]
+  }
+}
+
+16.2 OBTER WIDGET POR CODIGO
+Metodo: GET
+Endpoint: /api/v4/widgets/{code}
+
+16.3 INSTALAR WIDGET NA CONTA
+Metodo: POST
+Endpoint: /api/v4/widgets/{code}
+Body JSON: {"settings": object}
+
+16.4 DESINSTALAR WIDGET
+Metodo: DELETE
+Endpoint: /api/v4/widgets/{code}
+
+==================================================
+17. LISTAS (CATALOGS)
+==================================================
+
+17.1 OBTER LISTA DE LISTAS
+Metodo: GET
+Endpoint: /api/v4/catalogs
+Query Parameters: filter[id][], filter[name], limit, page
+Resposta JSON:
+{
+  "_embedded": {
+    "catalogs": [
+      {
+        "id": int,
+        "name": string,
+        "created_by": int,
+        "updated_by": int,
+        "created_at": int,
+        "updated_at": int,
+        "sort": int,
+        "type": string,
+        "can_add_elements": bool,
+        "can_show_in_cards": bool,
+        "can_link_multiple": bool,
+        "can_be_deleted": bool,
+        "sdk_widget_code": string,
+        "account_id": int
+      }
+    ]
+  }
+}
+
+17.2 OBTER LISTA UNICA
+Metodo: GET
+Endpoint: /api/v4/catalogs/{id}
+
+17.3 ADICIONAR LISTAS
+Metodo: POST
+Endpoint: /api/v4/catalogs
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "type": string,
+    "sort": int,
+    "can_add_elements": bool,
+    "can_show_in_cards": bool,
+    "can_link_multiple": bool
+  }
+]
+
+17.4 EDITAR MULTIPLAS LISTAS
+Metodo: PATCH
+Endpoint: /api/v4/catalogs
+
+17.5 EDITAR LISTA UNICA
+Metodo: PATCH
+Endpoint: /api/v4/catalogs/{id}
+
+17.6 OBTER ELEMENTOS DA LISTA
+Metodo: GET
+Endpoint: /api/v4/catalogs/{catalog_id}/elements
+Query Parameters:
+- filter[id][], filter[name]
+- filter[created_at][from/to], filter[updated_at][from/to]
+- order[created_at/updated_at/id]: asc/desc
+- limit, page
+
+17.7 OBTER ELEMENTO UNICO DA LISTA
+Metodo: GET
+Endpoint: /api/v4/catalogs/{catalog_id}/elements/{id}
+Resposta JSON:
+{
+  "id": int,
+  "name": string,
+  "created_by": int,
+  "updated_by": int,
+  "created_at": int,
+  "updated_at": int,
+  "is_deleted": bool,
+  "sort": int,
+  "type": string,
+  "custom_fields_values": array,
+  "account_id": int,
+  "catalog_id": int
+}
+
+17.8 ADICIONAR ELEMENTOS DA LISTA
+Metodo: POST
+Endpoint: /api/v4/catalogs/{catalog_id}/elements
+Body JSON:
+[
+  {
+    "name": string (obrigatorio),
+    "custom_fields_values": array,
+    "sort": int
+  }
+]
+
+17.9 EDITAR MULTIPLOS ELEMENTOS DA LISTA
+Metodo: PATCH
+Endpoint: /api/v4/catalogs/{catalog_id}/elements
+
+17.10 EDITAR ELEMENTO UNICO DA LISTA
+Metodo: PATCH
+Endpoint: /api/v4/catalogs/{catalog_id}/elements/{id}
+
+==================================================
+18. EVENTOS
+==================================================
+
+18.1 LISTA DE EVENTOS
+Metodo: GET
+Endpoint: /api/v4/events
+Query Parameters:
+- filter[entity][], filter[type][], filter[entity_id][]
+- filter[created_at][from/to]
+- order[created_at]: asc/desc
+- limit, page
+
+18.2 OBTER EVENTO POR ID
+Metodo: GET
+Endpoint: /api/v4/events/{id}
+Resposta JSON:
+{
+  "id": string,
+  "type": string,
+  "entity_id": int,
+  "entity_type": string,
+  "created_by": int,
+  "created_at": int,
+  "value_after": object,
+  "value_before": object,
+  "account_id": int
+}
+
+18.3 OBTER TIPOS DE EVENTOS
+Metodo: GET
+Endpoint: /api/v4/events/types
+
+18.4 TIPOS DE EVENTOS DISPONIVEIS
+- lead_added: Lead adicionado
+- lead_updated: Lead atualizado
+- lead_deleted: Lead deletado
+- lead_restored: Lead restaurado
+- lead_status_changed: Status do lead alterado
+- lead_responsible_changed: Responsavel do lead alterado
+- contact_added: Contato adicionado
+- contact_updated: Contato atualizado
+- contact_deleted: Contato deletado
+- contact_restored: Contato restaurado
+- contact_responsible_changed: Responsavel do contato alterado
+- company_added: Empresa adicionada
+- company_updated: Empresa atualizada
+- company_deleted: Empresa deletada
+- company_restored: Empresa restaurada
+- company_responsible_changed: Responsavel da empresa alterado
+- task_added: Tarefa adicionada
+- task_updated: Tarefa atualizada
+- task_deleted: Tarefa deletada
+- task_completed: Tarefa completada
+- incoming_lead_added: Lead de entrada adicionado
+- sale_field_changed: Campo de venda alterado
+- entity_linked: Entidade vinculada
+- entity_unlinked: Entidade desvinculada
+
+==================================================
+19. NOTAS
+==================================================
+
+19.1 OBTER NOTAS DE UMA ENTIDADE POR ID
+Metodo: GET
+Endpoint: /api/v4/{entity_type}/{entity_id}/notes
+Onde entity_type: leads, contacts, companies, customers
+Query Parameters:
+- filter[note_type][], filter[updated_at][from/to]
+- order[updated_at/id]: asc/desc
+- limit, page
+
+19.2 LISTA DE NOTAS POR TIPO DE ENTIDADE
+Metodo: GET
+Endpoint: /api/v4/{entity_type}/notes
+Query Parameters: filter[entity_id][] + parametros anteriores
+
+19.3 OBTER NOTA POR ID
+Metodo: GET
+Endpoint: /api/v4/{entity_type}/notes/{id}
+Resposta JSON:
+{
+  "id": int,
+  "entity_id": int,
+  "created_by": int,
+  "updated_by": int,
+  "created_at": int,
+  "updated_at": int,
+  "responsible_user_id": int,
+  "group_id": int,
+  "note_type": string,
+  "params": object,
+  "account_id": int
+}
+
+19.4 ADICIONAR NOTAS
+Metodo: POST
+Endpoint: /api/v4/{entity_type}/notes
+Body JSON:
+[
+  {
+    "entity_id": int (obrigatorio),
+    "note_type": string (obrigatorio),
+    "params": object,
+    "created_by": int,
+    "updated_by": int,
+    "responsible_user_id": int
+  }
+]
+
+19.5 EDITAR MULTIPLAS NOTAS
+Metodo: PATCH
+Endpoint: /api/v4/{entity_type}/notes
+
+19.6 EDITAR NOTA UNICA
+Metodo: PATCH
+Endpoint: /api/v4/{entity_type}/notes/{id}
+
+19.7 TIPOS DE NOTAS
+- common: Nota comum
+- call_in: Chamada recebida
+- call_out: Chamada realizada
+- service_message: Mensagem de servico
+- mail_message_attachment: Anexo de email
+- mail_message: Mensagem de email
+- sms_in: SMS recebido
+- sms_out: SMS enviado
+- system: Nota do sistema
+- dropbox: Dropbox
+- invoice: Fatura
+- extended_service_message: Mensagem de servico estendida
+
+==================================================
+20. CHAMADAS
+==================================================
+
+20.1 ADICIONAR CHAMADAS
+Metodo: POST
+Endpoint: /api/v4/calls
+Body JSON:
+[
+  {
+    "entity_id": int (obrigatorio),
+    "entity_type": string (obrigatorio),
+    "duration": int,
+    "source": string,
+    "link": string,
+    "phone": string,
+    "call_result": string,
+    "call_status": int,
+    "responsible_user_id": int,
+    "created_by": int,
+    "updated_by": int,
+    "created_at": int,
+    "updated_at": int
+  }
+]
+
+Resposta JSON:
+{
+  "_embedded": {
+    "calls": [
+      {
+        "id": string,
+        "entity_id": int,
+        "entity_type": string,
+        "duration": int,
+        "source": string,
+        "link": string,
+        "phone": string,
+        "call_result": string,
+        "call_status": int,
+        "responsible_user_id": int,
+        "created_by": int,
+        "updated_by": int,
+        "created_at": int,
+        "updated_at": int,
+        "account_id": int
+      }
+    ]
+  }
+}
+
+==================================================
+21. OAUTH 2.0
+==================================================
+
+21.1 OBTER/RENOVAR TOKEN DE ACESSO
+Metodo: POST
+Endpoint: /oauth2/access_token
+Content-Type: application/x-www-form-urlencoded
+
+Para obter token inicial:
+Body:
+client_id=YOUR_CLIENT_ID
+&client_secret=YOUR_CLIENT_SECRET
+&grant_type=authorization_code
+&code=AUTHORIZATION_CODE
+&redirect_uri=YOUR_REDIRECT_URI
+
+Para renovar token:
+Body:
+client_id=YOUR_CLIENT_ID
+&client_secret=YOUR_CLIENT_SECRET
+&grant_type=refresh_token
+&refresh_token=YOUR_REFRESH_TOKEN
+&redirect_uri=YOUR_REDIRECT_URI
+
+Resposta JSON:
+{
+  "token_type": "Bearer",
+  "expires_in": int,
+  "access_token": string,
+  "refresh_token": string
+}
+
+==================================================
+22. LINKS ENTRE ENTIDADES
+==================================================
+
+22.1 LISTA DE ENTIDADES VINCULADAS
+Metodo: GET
+Endpoint: /api/v4/{entity_type}/{entity_id}/links
+Onde entity_type: leads, contacts, companies
+Query Parameters: filter[to_entity_type], limit, page
+
+22.2 VINCULAR ENTIDADES
+Metodo: POST
+Endpoint: /api/v4/{entity_type}/{entity_id}/link
+Body JSON:
+[
+  {
+    "to_entity_id": int (obrigatorio),
+    "to_entity_type": string (obrigatorio),
+    "metadata": object
+  }
+]
+
+22.3 DESVINCULAR ENTIDADES
+Metodo: POST
+Endpoint: /api/v4/{entity_type}/{entity_id}/unlink
+Body JSON:
+[
+  {
+    "to_entity_id": int (obrigatorio),
+    "to_entity_type": string (obrigatorio)
+  }
+]
+
+==================================================
+OBSERVACOES FINAIS PARA IA
+==================================================
+
+1. AUTENTICACAO E SEGURANCA:
+- Todos os endpoints requerem token OAuth 2.0 no header: Authorization: Bearer {token}
+- Tokens expiram conforme expires_in, use refresh_token para renovar
+- Rate limits aplicados por conta, respeitar headers de limite
+- HTTPS obrigatorio para todas as requisicoes
+
+2. ESTRUTURA DE DADOS COMUM:
+- Timestamps sempre em Unix format (segundos desde 1970-01-01)
+- IDs sempre inteiros, exceto UIDs que podem ser strings
+- Campos custom_fields_values seguem estrutura padrao:
+  [{"field_id": int, "values": [{"value": mixed, "enum_id": int}]}]
+- _embedded contem dados relacionados quando parametro with[] usado
+
+3. PAGINACAO:
+- Parametros: page (numero da pagina), limit (max 250 por pagina)
+- Resposta contem _page com info de paginacao
+- Use _links para navegacao entre paginas
+
+4. FILTROS E ORDENACAO:
+- Filtros usam notacao filter[campo] ou filter[campo][] para arrays
+- Datas com filter[campo][from] e filter[campo][to]
+- Ordenacao com order[campo]=asc ou desc
+
+5. OPERACOES EM LOTE:
+- POST e PATCH aceitam arrays de objetos (max 250 por requisicao)
+- Operacoes atomicas: se um falha, todos falham
+- Respostas mantem ordem dos objetos enviados
+
+6. CAMPOS OBRIGATORIOS POR ENTIDADE:
+- Leads: name
+- Contacts: first_name ou last_name ou name
+- Companies: name
+- Users: name, email, role_id
+- Tasks: entity_id, entity_type, task_type_id, complete_till
+- Custom fields: name, type
+
+7. RELACIONAMENTOS:
+- Leads <-> Contacts: muitos para muitos
+- Leads <-> Companies: um para um (lead tem max 1 empresa)
+- Contacts <-> Companies: um para um (contato tem max 1 empresa)
+- Entidades <-> Tags: muitos para muitos
+- Use links API para gerenciar relacionamentos complexos
+
+8. WEBHOOKS:
+- Configurar via API ou interface web
+- Payload JSON enviado via POST para destination URL
+- Incluir verificacao de assinatura para seguranca
+- Eventos acionados em tempo real nas operacoes
+
+9. CAMPOS PERSONALIZADOS:
+- Tipos disponiveis: text, numeric, checkbox, select, multiselect, date, url, textarea, radiobutton, phone, email, etc.
+- Enums para campos de selecao com value e sort
+- Validacao baseada em configuracoes do campo
+
+10. TRATAMENTO DE ERROS:
+- HTTP status codes padrao (200, 201, 400, 401, 403, 404, 422, 429, 500)
+- Resposta de erro em Content-Type: application/problem+json
+- Estrutura: {"type": string, "title": string, "detail": string, "status": int}
+
+11. LIMITACOES ESPECIAIS:
+- Leads nao organizados (unsorted): limite de retencao
+- SalesBot: apenas administradores
+- Multiplos pipelines: filtros de status limitados
+- Custom fields: tipos nao podem ser alterados apos criacao
+- Webhooks: limite de URLs por conta
+
+12. METADADOS IMPORTANTES:
+- account_id sempre presente nas respostas
+- created_at/updated_at sempre em UTC
+- is_deleted para soft deletes
+- responsible_user_id para atribuicao de responsabilidade
+- group_id para organizacao em grupos

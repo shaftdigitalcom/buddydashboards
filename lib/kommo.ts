@@ -1,5 +1,25 @@
-﻿import Bottleneck from "bottleneck";
+import Bottleneck from "bottleneck";
 import { LRUCache } from "lru-cache";
+
+export class KommoRequestError extends Error {
+  status: number;
+  detail?: unknown;
+
+  constructor(message: string, options: { status: number; detail?: unknown }) {
+    super(message);
+    this.name = "KommoRequestError";
+    this.status = options.status;
+    this.detail = options.detail;
+  }
+
+  get isAuthError(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+
+  get isRateLimitError(): boolean {
+    return this.status === 429;
+  }
+}
 
 type OAuthAuth = {
   type: "oauth";
@@ -27,7 +47,7 @@ export type KommoRequestOptions = {
 
 const limiter = new Bottleneck({
   maxConcurrent: 1,
-  minTime: 350,
+  minTime: 400,
 });
 
 const cache = new LRUCache<string, any>({
@@ -43,15 +63,55 @@ function createAuthHeader(auth: KommoAuth): string {
   return `Bearer ${auth.token}`;
 }
 
-export async function kommoRequest<T>(options: KommoRequestOptions): Promise<T | null> {
+async function parseKommoResponse<T>(response: Response): Promise<T> {
+  if (response.status === 204) {
+    return null as T;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const isJson = contentType.includes("json");
+
+  if (!isJson) {
+    const textPayload = await response.text().catch(() => "");
+    return textPayload as unknown as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+async function handleRequest<T>(url: URL, init: RequestInit): Promise<T> {
+  const response = await fetch(url, init);
+
+  if (!response.ok) {
+    let detail: unknown;
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (contentType.includes("json")) {
+      detail = await response.json().catch(() => undefined);
+    } else {
+      detail = await response.text().catch(() => undefined);
+    }
+
+    throw new KommoRequestError(`${response.status} ${response.statusText}`, {
+      status: response.status,
+      detail,
+    });
+  }
+
+  return parseKommoResponse<T>(response);
+}
+
+export async function kommoRequest<T>(options: KommoRequestOptions): Promise<T> {
   const { accountDomain, path, method = "GET", body, auth, cacheKey, cacheTtlMs } = options;
   const url = new URL(path, `https://${accountDomain}.kommo.com/`);
 
-  if (cacheKey && cache.has(cacheKey)) {
-    return cache.get(cacheKey) as T;
+  const effectiveCacheKey = cacheKey ?? (method === "GET" && !body ? `${accountDomain}:${path}` : undefined);
+
+  if (effectiveCacheKey && cache.has(effectiveCacheKey)) {
+    return cache.get(effectiveCacheKey) as T;
   }
 
-  const requestInit: RequestInit = {
+  const init: RequestInit = {
     method,
     headers: {
       Authorization: createAuthHeader(auth),
@@ -60,20 +120,25 @@ export async function kommoRequest<T>(options: KommoRequestOptions): Promise<T |
     body: body ? JSON.stringify(body) : undefined,
   };
 
-  const execute = async () => {
-    console.info(`[Kommo] Requisição simulada: ${method} ${url.toString()}`);
-    void requestInit;
-    // TODO: substituir por fetch real e tratar erros + renovação de token
-    return null as T | null;
-  };
+  try {
+    const result = await limiter.schedule(() => handleRequest<T>(url, init));
 
-  const result = await limiter.schedule(execute);
+    if (effectiveCacheKey) {
+      if (cacheTtlMs) {
+        cache.set(effectiveCacheKey, result, { ttl: cacheTtlMs });
+      } else {
+        cache.set(effectiveCacheKey, result);
+      }
+    }
 
-  if (cacheKey && cacheTtlMs) {
-    cache.set(cacheKey, result, { ttl: cacheTtlMs });
+    return result;
+  } catch (error) {
+    if (effectiveCacheKey) {
+      cache.delete(effectiveCacheKey);
+    }
+
+    throw error;
   }
-
-  return result;
 }
 
 export function invalidateKommoCache(prefix: string) {
@@ -83,3 +148,4 @@ export function invalidateKommoCache(prefix: string) {
     }
   }
 }
+
