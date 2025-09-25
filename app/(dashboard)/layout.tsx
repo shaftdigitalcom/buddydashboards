@@ -1,5 +1,7 @@
 ﻿import Link from "next/link";
 
+import { LogoutButton } from "@/components/logout-button";
+
 export default function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -15,14 +17,15 @@ export default function DashboardLayout({
               Painel de Vendas em Tempo Real
             </h1>
           </div>
-          <nav className="flex gap-3 text-xs text-[color:var(--muted)]">
+          <div className="flex items-center gap-3 text-xs text-[color:var(--muted)]">
             <Link href="/settings" className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-5 py-2">
               Configurações
             </Link>
             <Link href="/onboarding/kommo" className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-5 py-2">
               Conexões Kommo
             </Link>
-          </nav>
+            <LogoutButton />
+          </div>
         </header>
         {children}
       </div>

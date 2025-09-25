@@ -1,6 +1,7 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 const steps = [
   {
@@ -22,12 +23,15 @@ const steps = [
 
 type ConnectionMethod = "oauth" | "token";
 
-export default function KommoOnboardingPage() {
+function KommoForm() {
   const [method, setMethod] = useState<ConnectionMethod | null>(null);
   const [token, setToken] = useState("");
   const [accountDomain, setAccountDomain] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const router = useRouter();
 
   const activeStep = useMemo(() => (method ? 2 : 1), [method]);
 
@@ -35,6 +39,7 @@ export default function KommoOnboardingPage() {
 
   const handleStartOAuth = () => {
     setError(null);
+    setSuccess(null);
 
     if (!normalizedDomain) {
       setError("Informe o domínio da sua conta Kommo (ex.: empresa.kommo.com).");
@@ -56,6 +61,7 @@ export default function KommoOnboardingPage() {
   const handleSubmitToken = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
+    setSuccess(null);
 
     if (!normalizedDomain) {
       setError("Informe o domínio da sua conta Kommo antes de validar o token.");
@@ -66,11 +72,21 @@ export default function KommoOnboardingPage() {
 
     try {
       const account = normalizedDomain.replace(/\.kommo\.com$/i, "");
-      await fetch("/api/kommo/token", {
+      const response = await fetch("/api/kommo/token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token, accountDomain: account }),
       });
+
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setError(body?.message ?? "Não foi possível validar o token. Tente novamente.");
+        return;
+      }
+
+      setSuccess("Conexão validada! Preparando dashboard...");
+      setTimeout(() => router.push("/dashboard?kommo=connected"), 1200);
     } catch (err) {
       console.error(err);
       setError("Não foi possível validar o token. Revise e tente novamente.");
@@ -205,7 +221,7 @@ export default function KommoOnboardingPage() {
         <h3 className="text-lg font-normal text-[color:var(--foreground)]">O que acontece depois?</h3>
         <div className="mt-3 grid gap-4 text-sm text-[color:var(--muted)] lg:grid-cols-3">
           <p>
-            Validamos seu acesso ao Kommo, incluindo pipelines e usuários. Tudo fica salvo com segurança via Supabase e criptografia.
+            Validamos seu acesso ao Kommo, incluindo pipelines e usuários. Tudo fica salvo com segurança via criptografia.
           </p>
           <p>
             Montamos a base para o dashboard: eventos de etapas, leads e métricas iniciais ficam em cache para carregamento rápido.
@@ -217,8 +233,15 @@ export default function KommoOnboardingPage() {
       </section>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
+      {success ? <p className="text-sm text-[color:var(--positive)]">{success}</p> : null}
     </div>
   );
 }
 
-
+export default function KommoOnboardingPage() {
+  return (
+    <Suspense>
+      <KommoForm />
+    </Suspense>
+  );
+}
