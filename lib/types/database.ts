@@ -42,7 +42,7 @@ export interface Database {
           id: string;
           user_id: string;
           account_domain: string;
-          auth_type: "oauth" | "token";
+          auth_type: "token" | "oauth";
           access_token_encrypted: string | null;
           refresh_token_encrypted: string | null;
           expires_at: string | null;
@@ -54,7 +54,7 @@ export interface Database {
           id?: string;
           user_id: string;
           account_domain: string;
-          auth_type: "oauth" | "token";
+          auth_type?: "token" | "oauth";
           access_token_encrypted?: string | null;
           refresh_token_encrypted?: string | null;
           expires_at?: string | null;
@@ -66,7 +66,7 @@ export interface Database {
           id?: string;
           user_id?: string;
           account_domain?: string;
-          auth_type?: "oauth" | "token";
+          auth_type?: "token" | "oauth";
           access_token_encrypted?: string | null;
           refresh_token_encrypted?: string | null;
           expires_at?: string | null;

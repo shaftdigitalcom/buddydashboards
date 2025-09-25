@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { envClient } from "@/lib/env.client";
-import { envServer } from "@/lib/env.server";
-import { encryptSecret } from "@/lib/security/crypto";
+import { getSupabaseServiceRoleClient } from "@/lib/supabaseServiceRoleClient";
+import { bufferToHex, encryptSecret } from "@/lib/security/crypto";
 
 const payloadSchema = z.object({
   token: z.string().min(10),
@@ -81,27 +81,27 @@ export async function POST(request: NextRequest) {
 
     const accountPayload = await validationResponse.json().catch(() => ({}));
 
-    const encryptedToken = encryptSecret(token);
+    const encryptedToken = bufferToHex(encryptSecret(token));
 
-    const upsertPayload = {
-      user_id: user.id,
-      account_domain: cleanDomain,
-      auth_type: "token" as const,
-      access_token_encrypted: `\\x${encryptedToken.toString("hex")}`,
-      refresh_token_encrypted: null,
-      expires_at: null,
-      metadata: {
-        account_id: accountPayload.account_id ?? accountPayload.id ?? null,
-        name: accountPayload.name ?? accountPayload.account_name ?? null,
-        timezone: accountPayload.timezone ?? null,
-        retrieved_at: new Date().toISOString(),
-        method: "token",
+    const service = getSupabaseServiceRoleClient();
+    const { error } = await service.from("kommo_connections").upsert(
+      {
+        user_id: user.id,
+        account_domain: cleanDomain,
+        auth_type: "token",
+        access_token_encrypted: encryptedToken,
+        refresh_token_encrypted: null,
+        expires_at: null,
+        metadata: {
+          account_id: accountPayload.account_id ?? accountPayload.id ?? null,
+          name: accountPayload.name ?? accountPayload.account_name ?? null,
+          timezone: accountPayload.timezone ?? null,
+          retrieved_at: new Date().toISOString(),
+          method: "token",
+        },
       },
-    };
-
-    const { error } = await supabase
-      .from("kommo_connections")
-      .upsert(upsertPayload, { onConflict: "user_id,account_domain" });
+      { onConflict: "user_id,account_domain" }
+    );
 
     if (error) {
       console.error("Erro Supabase ao salvar token", error.message);
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       message: "Conexão Kommo configurada",
       account: {
         domain: `${cleanDomain}.kommo.com`,
-        name: upsertPayload.metadata.name,
+        name: accountPayload.name ?? accountPayload.account_name ?? null,
       },
     });
   } catch (error) {
